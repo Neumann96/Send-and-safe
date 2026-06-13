@@ -6,3 +6,11 @@ web/dist
 web/*.tsbuildinfo
 *.log
 .env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.credentials
+credentials.json
+secrets

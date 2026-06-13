@@ -4,5 +4,14 @@
 /web/*.tsbuildinfo
 *.log
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.credentials
+credentials.json
+secrets/
 /send-and-safe-linux-amd64
 /send-and-safe-release.tar.gz

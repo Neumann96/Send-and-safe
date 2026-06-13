@@ -4,3 +4,5 @@
 /web/*.tsbuildinfo
 *.log
 .env
+/send-and-safe-linux-amd64
+/send-and-safe-release.tar.gz

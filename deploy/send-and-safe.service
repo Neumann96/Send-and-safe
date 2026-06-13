@@ -1,0 +1,27 @@
+[Unit]
+Description=Send and Safe encrypted file transfer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sendandsafe
+Group=sendandsafe
+WorkingDirectory=/opt/send-and-safe
+ExecStart=/opt/send-and-safe/send-and-safe
+Environment=ADDR=127.0.0.1:8790
+Environment=DATA_DIR=/var/lib/send-and-safe
+Environment=WEB_DIR=/opt/send-and-safe/web
+Environment=MAX_FILE_BYTES=536870912
+Environment=MAX_STORAGE_BYTES=8589934592
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/send-and-safe
+MemoryMax=320M
+
+[Install]
+WantedBy=multi-user.target

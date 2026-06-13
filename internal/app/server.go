@@ -30,11 +30,12 @@ const (
 )
 
 type Config struct {
-	Addr          string
-	DataDir       string
-	WebDir        string
-	MaxFileBytes  int64
-	CleanupPeriod time.Duration
+	Addr            string
+	DataDir         string
+	WebDir          string
+	MaxFileBytes    int64
+	MaxStorageBytes int64
+	CleanupPeriod   time.Duration
 }
 
 type Server struct {
@@ -84,7 +85,8 @@ type publicManifest struct {
 }
 
 func New(config Config) (*Server, error) {
-	if config.Addr == "" || config.DataDir == "" || config.MaxFileBytes <= 0 {
+	if config.Addr == "" || config.DataDir == "" || config.MaxFileBytes <= 0 ||
+		config.MaxStorageBytes <= 0 {
 		return nil, errors.New("invalid server configuration")
 	}
 	if config.CleanupPeriod <= 0 {
@@ -125,9 +127,10 @@ func New(config Config) (*Server, error) {
 	mux.HandleFunc("/api/transfers/", server.handleTransfer)
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"status":       "ok",
-			"ttlHours":     int(transferTTL.Hours()),
-			"maxFileBytes": config.MaxFileBytes,
+			"status":          "ok",
+			"ttlHours":        int(transferTTL.Hours()),
+			"maxFileBytes":    config.MaxFileBytes,
+			"maxStorageBytes": config.MaxStorageBytes,
 		})
 	})
 	mux.Handle("/", server.webHandler())
@@ -178,12 +181,16 @@ func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
 		ChunkSize: request.ChunkSize, ChunkCount: request.ChunkCount,
 		CreatedAt: now, ExpiresAt: now.Add(transferTTL), Crypto: request.Crypto,
 	}
-	if err := os.MkdirAll(s.transferDir(id), 0o700); err != nil {
-		http.Error(w, "could not create transfer", http.StatusInternalServerError)
+	if err := s.reserveStorage(item); err != nil {
+		if errors.Is(err, errStorageFull) {
+			http.Error(w, "storage capacity is temporarily exhausted", http.StatusInsufficientStorage)
+			return
+		}
+		http.Error(w, "could not reserve storage", http.StatusInternalServerError)
 		return
 	}
-	if err := s.insertTransfer(item); err != nil {
-		_ = os.RemoveAll(s.transferDir(id))
+	if err := os.MkdirAll(s.transferDir(id), 0o700); err != nil {
+		_, _ = s.db.Exec(`DELETE FROM transfers WHERE id = ?`, id)
 		http.Error(w, "could not create transfer", http.StatusInternalServerError)
 		return
 	}
@@ -380,19 +387,39 @@ func (s *Server) validateCreate(request createRequest) error {
 	return nil
 }
 
-func (s *Server) insertTransfer(item transfer) error {
+var errStorageFull = errors.New("storage capacity exhausted")
+
+func (s *Server) reserveStorage(item transfer) error {
 	cryptoJSON, err := json.Marshal(item.Crypto)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var reserved int64
+	if err := tx.QueryRow(`
+		SELECT COALESCE(SUM(plain_size + chunk_count * 16), 0)
+		FROM transfers WHERE expires_at > ?`, time.Now().Unix(),
+	).Scan(&reserved); err != nil {
+		return err
+	}
+	required := item.PlainSize + int64(item.ChunkCount)*16
+	if reserved > s.config.MaxStorageBytes-required {
+		return errStorageFull
+	}
+	if _, err = tx.Exec(`
 		INSERT INTO transfers
 			(id, token_hash, plain_size, chunk_size, chunk_count, created_at, expires_at, complete, crypto_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
 		item.ID, item.TokenHash, item.PlainSize, item.ChunkSize, item.ChunkCount,
 		item.CreatedAt.Unix(), item.ExpiresAt.Unix(), string(cryptoJSON),
-	)
-	return err
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Server) loadTransfer(id string) (transfer, error) {

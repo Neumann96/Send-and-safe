@@ -90,11 +90,35 @@ func TestRejectsWeakCodeConfiguration(t *testing.T) {
 	}
 }
 
+func TestRejectsTransferWhenStorageQuotaIsExhausted(t *testing.T) {
+	server, err := New(Config{
+		Addr: ":0", DataDir: t.TempDir(), MaxFileBytes: 1024,
+		MaxStorageBytes: 30, CleanupPeriod: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+
+	body, _ := json.Marshal(createRequest{
+		PlainSize: 10, ChunkSize: 10, ChunkCount: 1, Crypto: validLinkCrypto(),
+	})
+	first := request(server, http.MethodPost, "/api/transfers", body, "")
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first status = %d, body = %s", first.Code, first.Body)
+	}
+	second := request(server, http.MethodPost, "/api/transfers", body, "")
+	if second.Code != http.StatusInsufficientStorage {
+		t.Fatalf("second status = %d, body = %s", second.Code, second.Body)
+	}
+}
+
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	server, err := New(Config{
 		Addr: ":0", DataDir: t.TempDir(), MaxFileBytes: 1024,
-		CleanupPeriod: time.Hour,
+		MaxStorageBytes: 1024 * 1024,
+		CleanupPeriod:   time.Hour,
 	})
 	if err != nil {
 		t.Fatal(err)

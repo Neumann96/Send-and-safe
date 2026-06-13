@@ -492,6 +492,201 @@ footer {
   color: #b8c3d8;
 }
 
+.lost-card {
+  position: relative;
+  min-height: 600px;
+  overflow: hidden;
+  padding: 0;
+  background:
+    radial-gradient(circle at 22% 27%, rgba(89, 111, 255, 0.17), transparent 32%),
+    linear-gradient(145deg, rgba(18, 24, 39, 0.97), rgba(10, 14, 23, 0.98));
+}
+
+.lost-card::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(130, 147, 214, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(130, 147, 214, 0.035) 1px, transparent 1px);
+  background-size: 34px 34px;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+.lost-scene {
+  position: relative;
+  height: 265px;
+  overflow: hidden;
+}
+
+.lost-scene::after {
+  position: absolute;
+  right: -10%;
+  bottom: 1px;
+  left: -10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(121, 140, 255, 0.38), transparent);
+  content: "";
+}
+
+.lost-code {
+  position: absolute;
+  top: 35px;
+  left: 50%;
+  color: rgba(142, 158, 255, 0.07);
+  font-size: clamp(112px, 32vw, 190px);
+  font-weight: 950;
+  letter-spacing: -0.09em;
+  line-height: 1;
+  transform: translateX(-52%);
+  user-select: none;
+}
+
+.lost-file {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  width: 82px;
+  height: 104px;
+  padding: 48px 18px 0;
+  border: 1px solid rgba(158, 173, 255, 0.55);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(92, 113, 244, 0.2), rgba(36, 46, 79, 0.25));
+  box-shadow:
+    0 24px 55px rgba(31, 48, 146, 0.32),
+    inset 0 0 24px rgba(130, 149, 255, 0.08);
+  transform: translateX(-50%) rotate(-4deg);
+  animation: lost-float 5s ease-in-out infinite;
+}
+
+.lost-file::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 27px;
+  height: 27px;
+  border-bottom: 1px solid rgba(158, 173, 255, 0.55);
+  border-left: 1px solid rgba(158, 173, 255, 0.55);
+  border-radius: 0 15px 0 9px;
+  background: rgba(114, 134, 255, 0.14);
+  content: "";
+}
+
+.lost-file span {
+  display: block;
+  height: 3px;
+  margin-top: 8px;
+  border-radius: 4px;
+  background: rgba(156, 170, 255, 0.4);
+}
+
+.lost-file span:nth-child(2) {
+  width: 75%;
+}
+
+.lost-file span:nth-child(3) {
+  width: 46%;
+}
+
+.lost-orbit {
+  position: absolute;
+  top: 124px;
+  left: 50%;
+  border: 1px dashed rgba(121, 141, 255, 0.17);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.lost-orbit-one {
+  width: 230px;
+  height: 138px;
+  animation: orbit-spin 22s linear infinite;
+}
+
+.lost-orbit-two {
+  width: 330px;
+  height: 195px;
+  animation: orbit-spin 30s linear infinite reverse;
+}
+
+.lost-pixel {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: #8396ff;
+  box-shadow: 0 0 14px rgba(112, 135, 255, 0.7);
+  animation: pixel-drift 4s ease-in-out infinite;
+}
+
+.pixel-one { top: 70px; left: 27%; }
+.pixel-two { top: 155px; left: 21%; animation-delay: -1.3s; }
+.pixel-three { top: 92px; right: 24%; animation-delay: -2.2s; }
+.pixel-four { top: 185px; right: 30%; animation-delay: -0.7s; }
+
+.lost-copy {
+  position: relative;
+  z-index: 1;
+  padding: 31px 34px 34px;
+  text-align: center;
+}
+
+.lost-copy h1 {
+  font-size: clamp(30px, 7vw, 44px);
+}
+
+.lost-copy > p {
+  max-width: 490px;
+  margin: 17px auto 21px;
+  color: #98a5bc;
+  line-height: 1.6;
+}
+
+.lost-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border: 1px solid rgba(119, 136, 203, 0.16);
+  border-radius: 999px;
+  color: #8491a8;
+  background: rgba(9, 13, 22, 0.48);
+  font-size: 11px;
+}
+
+.lost-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6f82ef;
+  box-shadow: 0 0 0 4px rgba(111, 130, 239, 0.11);
+}
+
+.lost-action {
+  display: flex;
+  max-width: 330px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 23px auto 0;
+}
+
+.lost-action span {
+  font-size: 19px;
+  transition: transform 220ms ease;
+}
+
+.lost-action:hover span {
+  transform: translateX(4px);
+}
+
+.lost-footnote {
+  display: block;
+  margin-top: 14px;
+  color: #626f86;
+  font-size: 11px;
+}
+
 @keyframes card-in {
   from { opacity: 0; transform: translateY(12px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -520,6 +715,21 @@ footer {
 @keyframes progress-shimmer {
   from { background-position: 100% 0; }
   to { background-position: -100% 0; }
+}
+
+@keyframes lost-float {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-4deg); }
+  50% { transform: translateX(-50%) translateY(-9px) rotate(1deg); }
+}
+
+@keyframes orbit-spin {
+  from { transform: translate(-50%, -50%) rotate(0); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes pixel-drift {
+  0%, 100% { opacity: 0.25; transform: translate(0, 0) rotate(0); }
+  50% { opacity: 0.9; transform: translate(9px, -13px) rotate(90deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -553,5 +763,21 @@ footer {
 
   .share-field button {
     min-height: 42px;
+  }
+
+  .lost-card {
+    min-height: 570px;
+  }
+
+  .lost-scene {
+    height: 235px;
+  }
+
+  .lost-copy {
+    padding: 27px 21px 28px;
+  }
+
+  .lost-copy > p {
+    font-size: 14px;
   }
 }

@@ -13,10 +13,20 @@ interface CreatedTransfer {
   expiresAt: string;
 }
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function checked(response: Response): Promise<Response> {
   if (response.ok) return response;
   const message = (await response.text()).trim();
-  throw new Error(message || `Ошибка сервера: ${response.status}`);
+  throw new ApiError(message || `Ошибка сервера: ${response.status}`, response.status);
 }
 
 export async function createTransfer(

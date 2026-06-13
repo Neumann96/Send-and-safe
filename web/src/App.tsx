@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ApiError,
   claimTransfer,
   completeTransfer,
   consumeTransfer,
@@ -29,9 +30,15 @@ interface ShareResult {
 }
 
 export default function App() {
-  const transferID = useMemo(() => {
+  const route = useMemo(() => {
+    if (window.location.pathname === "/") {
+      return { kind: "upload" } as const;
+    }
     const match = window.location.pathname.match(/^\/d\/([A-Za-z0-9_-]+)$/);
-    return match?.[1] ?? null;
+    if (match) {
+      return { kind: "download", id: match[1] } as const;
+    }
+    return { kind: "not-found" } as const;
   }, []);
 
   useEffect(() => {
@@ -49,8 +56,12 @@ export default function App() {
           <small>Приватная передача файлов</small>
         </div>
       </header>
-      {transferID ? <DownloadView id={transferID} /> : <UploadView />}
-      <footer>Файлы автоматически удаляются через 48 часов</footer>
+      {route.kind === "upload" && <UploadView />}
+      {route.kind === "download" && <DownloadView id={route.id} />}
+      {route.kind === "not-found" && <NotFoundView />}
+      {route.kind !== "not-found" && (
+        <footer>Файлы автоматически удаляются через 48 часов</footer>
+      )}
     </main>
   );
 }
@@ -254,6 +265,7 @@ function UploadView() {
 
 function DownloadView({ id }: { id: string }) {
   const [manifest, setManifest] = useState<TransferManifest | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
   const [code, setCode] = useState("");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -261,7 +273,15 @@ function DownloadView({ id }: { id: string }) {
   const [stage, setStage] = useState("Готово к скачиванию");
 
   useEffect(() => {
-    getManifest(id).then(setManifest).catch((reason) => setError(messageOf(reason)));
+    getManifest(id)
+      .then(setManifest)
+      .catch((reason) => {
+        if (isUnavailable(reason)) {
+          setUnavailable(true);
+          return;
+        }
+        setError(messageOf(reason));
+      });
   }, [id]);
 
   async function download() {
@@ -307,11 +327,19 @@ function DownloadView({ id }: { id: string }) {
       setStage("Файл расшифрован и передан браузеру");
       hapticSuccess();
     } catch (reason) {
+      if (isUnavailable(reason)) {
+        setUnavailable(true);
+        return;
+      }
       setError(messageOf(reason, "Не удалось расшифровать файл"));
       hapticError();
     } finally {
       setBusy(false);
     }
+  }
+
+  if (unavailable) {
+    return <NotFoundView />;
   }
 
   return (
@@ -357,6 +385,53 @@ function DownloadView({ id }: { id: string }) {
         </>
       )}
       {error && <p className="error">{error}</p>}
+    </section>
+  );
+}
+
+function NotFoundView() {
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "След файла потерян — Send and Safe";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
+
+  return (
+    <section className="card lost-card">
+      <div className="lost-scene" aria-hidden="true">
+        <div className="lost-orbit lost-orbit-one" />
+        <div className="lost-orbit lost-orbit-two" />
+        <div className="lost-code">404</div>
+        <div className="lost-file">
+          <span />
+          <span />
+          <span />
+        </div>
+        <i className="lost-pixel pixel-one" />
+        <i className="lost-pixel pixel-two" />
+        <i className="lost-pixel pixel-three" />
+        <i className="lost-pixel pixel-four" />
+      </div>
+      <div className="lost-copy">
+        <div className="eyebrow">ЦИФРОВОЙ СЛЕД ОБОРВАЛСЯ</div>
+        <h1>Здесь был файл.<br />Теперь только тишина.</h1>
+        <p>
+          Возможно, его уже расшифровали, срок хранения закончился или ссылка
+          ведёт в несуществующее место. Мы не оставляем копий, поэтому вернуть
+          его отсюда нельзя.
+        </p>
+        <div className="lost-status">
+          <span className="lost-status-dot" />
+          <span>Зашифрованных данных на сервере не найдено</span>
+        </div>
+        <button className="primary lost-action" onClick={() => window.location.assign("/")}>
+          Отправить новый файл
+          <span aria-hidden="true">→</span>
+        </button>
+        <small className="lost-footnote">И это, пожалуй, хорошая новость для приватности.</small>
+      </div>
     </section>
   );
 }
@@ -477,4 +552,8 @@ function hapticError() {
 
 function messageOf(reason: unknown, fallback = "Что-то пошло не так"): string {
   return reason instanceof Error ? reason.message : fallback;
+}
+
+function isUnavailable(reason: unknown): boolean {
+  return reason instanceof ApiError && (reason.status === 404 || reason.status === 410);
 }

@@ -1,4 +1,4 @@
-# SendBigFiles MVP
+# Send and Safe MVP
 
 Telegram Mini App для анонимной передачи файлов с клиентским end-to-end
 шифрованием. Backend никогда не получает ключ содержимого.

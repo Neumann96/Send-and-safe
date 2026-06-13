@@ -22,6 +22,8 @@ interface ShareResult {
   link: string;
   code?: string;
   expiresAt: string;
+  chunkCount: number;
+  durationMs: number;
 }
 
 export default function App() {
@@ -41,7 +43,7 @@ export default function App() {
       <header className="brand">
         <span className="brand-mark">S</span>
         <div>
-          <strong>SendBigFiles</strong>
+          <strong>Send and Safe</strong>
           <small>Приватная передача файлов</small>
         </div>
       </header>
@@ -58,6 +60,7 @@ function UploadView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ShareResult | null>(null);
+  const [stage, setStage] = useState("Ожидание файла");
 
   async function upload() {
     if (!file) return;
@@ -68,9 +71,13 @@ function UploadView() {
     setBusy(true);
     setError("");
     setResult(null);
+    setProgress(0);
+    const startedAt = performance.now();
     try {
+      setStage("Создаём локальный ключ AES-256");
       const prepared = await prepareCrypto(file, mode);
       const chunkCount = Math.ceil(file.size / CHUNK_SIZE);
+      setStage("Передаём серверу только зашифрованный конверт");
       const created = await createTransfer({
         plainSize: file.size,
         chunkSize: CHUNK_SIZE,
@@ -80,6 +87,7 @@ function UploadView() {
 
       let nextIndex = 0;
       let completed = 0;
+      setStage(`Шифруем и отправляем блоки: 0 из ${chunkCount}`);
       async function worker() {
         while (nextIndex < chunkCount) {
           const index = nextIndex++;
@@ -95,9 +103,11 @@ function UploadView() {
           await uploadChunk(created.id, created.uploadToken, index, encrypted);
           completed += 1;
           setProgress(Math.round((completed / chunkCount) * 100));
+          setStage(`Зашифровано и отправлено: ${completed} из ${chunkCount}`);
         }
       }
       await Promise.all([worker(), worker()]);
+      setStage("Сервер проверяет наличие всех зашифрованных блоков");
       await completeTransfer(created.id, created.uploadToken);
 
       const base = `${window.location.origin}/d/${created.id}`;
@@ -110,9 +120,17 @@ function UploadView() {
           expiresAt: created.expiresAt,
         }),
       );
-      setResult({ link, code: prepared.code, expiresAt: created.expiresAt });
+      setResult({
+        link,
+        code: prepared.code,
+        expiresAt: created.expiresAt,
+        chunkCount,
+        durationMs: performance.now() - startedAt,
+      });
+      hapticSuccess();
     } catch (reason) {
       setError(messageOf(reason));
+      hapticError();
     } finally {
       setBusy(false);
     }
@@ -133,10 +151,26 @@ function UploadView() {
             </p>
           </>
         )}
+        <div className="proof-card">
+          <div className="proof-title">
+            <span className="proof-icon">✓</span>
+            <div>
+              <strong>Что произошло на этом устройстве</strong>
+              <small>{result.chunkCount} зашифрованных блоков за {formatDuration(result.durationMs)}</small>
+            </div>
+          </div>
+          <div className="proof-list">
+            <span>Создан случайный ключ AES-256</span>
+            <span>Имя и тип файла зашифрованы</span>
+            <span>Сервер получил только шифротекст</span>
+          </div>
+        </div>
+        <TransparencyDetails mode={mode} />
         <button className="secondary" onClick={() => {
           setFile(null);
           setProgress(0);
           setResult(null);
+          setStage("Ожидание файла");
         }}>
           Отправить другой файл
         </button>
@@ -196,11 +230,11 @@ function UploadView() {
       </div>
 
       {busy && (
-        <div className="progress-wrap">
+        <div className="progress-wrap" aria-live="polite">
           <div className="progress-line">
             <span style={{ width: `${progress}%` }} />
           </div>
-          <small>Шифрование и загрузка: {progress}%</small>
+          <small>{stage} · {progress}%</small>
         </div>
       )}
       {error && <p className="error">{error}</p>}
@@ -211,6 +245,7 @@ function UploadView() {
         <span>Без регистрации</span>
         <span>Без передачи ключей серверу</span>
       </div>
+      <TransparencyDetails mode={mode} compact />
     </section>
   );
 }
@@ -221,6 +256,7 @@ function DownloadView({ id }: { id: string }) {
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [stage, setStage] = useState("Готово к скачиванию");
 
   useEffect(() => {
     getManifest(id).then(setManifest).catch((reason) => setError(messageOf(reason)));
@@ -236,11 +272,15 @@ function DownloadView({ id }: { id: string }) {
     }
     setBusy(true);
     setError("");
+    setProgress(0);
     try {
+      setStage("Восстанавливаем ключ только на этом устройстве");
       const key = await resolveFileKey(manifest.crypto, secret);
+      setStage("Расшифровываем имя и тип файла");
       const metadata = await decryptMetadata(manifest.crypto, key);
       const parts: BlobPart[] = [];
       for (let index = 0; index < manifest.chunkCount; index += 1) {
+        setStage(`Скачиваем и расшифровываем блок ${index + 1} из ${manifest.chunkCount}`);
         const encrypted = await getChunk(id, index);
         const plain = await decryptChunk(
           encrypted,
@@ -258,8 +298,11 @@ function DownloadView({ id }: { id: string }) {
       anchor.download = metadata.name;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setStage("Файл расшифрован и передан браузеру");
+      hapticSuccess();
     } catch (reason) {
       setError(messageOf(reason, "Не удалось расшифровать файл"));
+      hapticError();
     } finally {
       setBusy(false);
     }
@@ -292,11 +335,11 @@ function DownloadView({ id }: { id: string }) {
             </label>
           )}
           {busy && (
-            <div className="progress-wrap">
+            <div className="progress-wrap" aria-live="polite">
               <div className="progress-line">
                 <span style={{ width: `${progress}%` }} />
               </div>
-              <small>Скачивание и расшифровка: {progress}%</small>
+              <small>{stage} · {progress}%</small>
             </div>
           )}
           <button className="primary" disabled={busy} onClick={download}>
@@ -313,21 +356,62 @@ function DownloadView({ id }: { id: string }) {
 }
 
 function ShareField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function copy() {
+    try {
+      await copyText(value);
+      setCopyState("copied");
+      window.Telegram?.WebApp.HapticFeedback?.impactOccurred("light");
+      setTimeout(() => setCopyState("idle"), 1600);
+    } catch {
+      setCopyState("error");
+    }
+  }
+
   return (
     <div className="share-field">
       <label>{label}</label>
       <div>
-        <input value={value} readOnly />
-        <button onClick={async () => {
-          await navigator.clipboard.writeText(value);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}>
-          {copied ? "Готово" : "Копировать"}
+        <input
+          value={value}
+          readOnly
+          onFocus={(event) => event.currentTarget.select()}
+          aria-label={label}
+        />
+        <button className={copyState === "copied" ? "copied" : ""} onClick={copy}>
+          {copyState === "copied"
+            ? "Скопировано"
+            : copyState === "error"
+              ? "Выделить"
+              : "Копировать"}
         </button>
       </div>
+      {copyState === "error" && (
+        <small className="copy-help">Нажмите на поле и скопируйте выделенный текст.</small>
+      )}
     </div>
+  );
+}
+
+function TransparencyDetails({
+  mode,
+  compact = false,
+}: {
+  mode: AccessMode;
+  compact?: boolean;
+}) {
+  return (
+    <details className={compact ? "transparency compact" : "transparency"}>
+      <summary>Как проверить приватность</summary>
+      <div className="transparency-content">
+        <p><strong>Сервер получает:</strong> размер, время, IP-адрес и зашифрованные блоки.</p>
+        <p><strong>Сервер не получает:</strong> имя файла, содержимое и {
+          mode === "code" ? "код доступа" : "ключ из части ссылки после #"
+        }.</p>
+        <p>Имя файла сохраняется, потому что оно находится внутри зашифрованных метаданных и восстанавливается у получателя.</p>
+      </div>
+    </details>
   );
 }
 
@@ -343,6 +427,46 @@ function formatDate(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatDuration(milliseconds: number): string {
+  if (milliseconds < 1000) return `${Math.round(milliseconds)} мс`;
+  return `${(milliseconds / 1000).toFixed(1)} с`;
+}
+
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Telegram WebView can expose Clipboard API while denying the write.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.readOnly = true;
+  textarea.style.position = "fixed";
+  textarea.style.inset = "0";
+  textarea.style.width = "1px";
+  textarea.style.height = "1px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, value.length);
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Clipboard is unavailable");
+}
+
+function hapticSuccess() {
+  window.Telegram?.WebApp.HapticFeedback?.notificationOccurred("success");
+}
+
+function hapticError() {
+  window.Telegram?.WebApp.HapticFeedback?.notificationOccurred("error");
 }
 
 function messageOf(reason: unknown, fallback = "Что-то пошло не так"): string {

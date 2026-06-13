@@ -57,15 +57,17 @@ type CryptoManifest struct {
 }
 
 type transfer struct {
-	ID         string
-	TokenHash  string
-	PlainSize  int64
-	ChunkSize  int64
-	ChunkCount int
-	CreatedAt  time.Time
-	ExpiresAt  time.Time
-	Complete   bool
-	Crypto     CryptoManifest
+	ID             string
+	TokenHash      string
+	ClaimTokenHash string
+	PlainSize      int64
+	ChunkSize      int64
+	ChunkCount     int
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	ClaimedAt      *time.Time
+	Complete       bool
+	Crypto         CryptoManifest
 }
 
 type createRequest struct {
@@ -119,6 +121,14 @@ func New(config Config) (*Server, error) {
 	`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize sqlite: %w", err)
+	}
+	if err := ensureColumn(db, "transfers", "claimed_at", "INTEGER"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("migrate sqlite claimed_at: %w", err)
+	}
+	if err := ensureColumn(db, "transfers", "claim_token_hash", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("migrate sqlite claim_token_hash: %w", err)
 	}
 
 	server := &Server{config: config, db: db}
@@ -213,6 +223,10 @@ func (s *Server) handleTransfer(w http.ResponseWriter, r *http.Request) {
 		s.deleteTransfer(w, r, id)
 	case len(parts) == 2 && parts[1] == "complete" && r.Method == http.MethodPost:
 		s.completeTransfer(w, r, id)
+	case len(parts) == 2 && parts[1] == "claim" && r.Method == http.MethodPost:
+		s.claimTransfer(w, r, id)
+	case len(parts) == 2 && parts[1] == "consume" && r.Method == http.MethodPost:
+		s.consumeTransfer(w, r, id)
 	case len(parts) == 3 && parts[1] == "chunks" && r.Method == http.MethodPut:
 		s.putChunk(w, r, id, parts[2])
 	case len(parts) == 3 && parts[1] == "chunks" && r.Method == http.MethodGet:
@@ -304,7 +318,7 @@ func (s *Server) completeTransfer(w http.ResponseWriter, r *http.Request, id str
 
 func (s *Server) getManifest(w http.ResponseWriter, r *http.Request, id string) {
 	item, err := s.loadTransfer(id)
-	if err != nil || !item.Complete {
+	if err != nil || !item.Complete || item.ClaimedAt != nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -319,6 +333,36 @@ func (s *Server) getManifest(w http.ResponseWriter, r *http.Request, id string) 
 	})
 }
 
+func (s *Server) claimTransfer(w http.ResponseWriter, r *http.Request, id string) {
+	token, err := randomString(32)
+	if err != nil {
+		http.Error(w, "could not claim transfer", http.StatusInternalServerError)
+		return
+	}
+	now := time.Now().UTC()
+	result, err := s.db.Exec(`
+		UPDATE transfers
+		SET claimed_at = ?, claim_token_hash = ?
+		WHERE id = ? AND complete = 1 AND claimed_at IS NULL AND expires_at > ?`,
+		now.Unix(), hashToken(token), id, now.Unix(),
+	)
+	if err != nil {
+		http.Error(w, "could not claim transfer", http.StatusInternalServerError)
+		return
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "could not claim transfer", http.StatusInternalServerError)
+		return
+	}
+	if affected != 1 {
+		http.Error(w, "transfer was already received or expired", http.StatusGone)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]string{"downloadToken": token})
+}
+
 func (s *Server) getChunk(w http.ResponseWriter, r *http.Request, id, rawIndex string) {
 	index, err := strconv.Atoi(rawIndex)
 	if err != nil {
@@ -326,8 +370,13 @@ func (s *Server) getChunk(w http.ResponseWriter, r *http.Request, id, rawIndex s
 		return
 	}
 	item, err := s.loadTransfer(id)
-	if err != nil || !item.Complete || index < 0 || index >= item.ChunkCount {
+	if err != nil || !item.Complete || item.ClaimedAt == nil ||
+		index < 0 || index >= item.ChunkCount {
 		http.NotFound(w, r)
+		return
+	}
+	if !authorized(r, item.ClaimTokenHash) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	if time.Now().After(item.ExpiresAt) {
@@ -337,6 +386,23 @@ func (s *Server) getChunk(w http.ResponseWriter, r *http.Request, id, rawIndex s
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "private, no-store")
 	http.ServeFile(w, r, s.chunkPath(id, index))
+}
+
+func (s *Server) consumeTransfer(w http.ResponseWriter, r *http.Request, id string) {
+	item, err := s.loadTransfer(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if item.ClaimedAt == nil || !authorized(r, item.ClaimTokenHash) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if err := s.removeTransfer(id); err != nil {
+		http.Error(w, "could not consume transfer", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) deleteTransfer(w http.ResponseWriter, r *http.Request, id string) {
@@ -425,21 +491,26 @@ func (s *Server) reserveStorage(item transfer) error {
 func (s *Server) loadTransfer(id string) (transfer, error) {
 	var item transfer
 	var createdAt, expiresAt int64
+	var claimedAt sql.NullInt64
 	var complete int
 	var cryptoJSON string
 	err := s.db.QueryRow(`
 		SELECT id, token_hash, plain_size, chunk_size, chunk_count,
-			created_at, expires_at, complete, crypto_json
+			created_at, expires_at, claimed_at, claim_token_hash, complete, crypto_json
 		FROM transfers WHERE id = ?`, id,
 	).Scan(
 		&item.ID, &item.TokenHash, &item.PlainSize, &item.ChunkSize, &item.ChunkCount,
-		&createdAt, &expiresAt, &complete, &cryptoJSON,
+		&createdAt, &expiresAt, &claimedAt, &item.ClaimTokenHash, &complete, &cryptoJSON,
 	)
 	if err != nil {
 		return item, err
 	}
 	item.CreatedAt = time.Unix(createdAt, 0).UTC()
 	item.ExpiresAt = time.Unix(expiresAt, 0).UTC()
+	if claimedAt.Valid {
+		value := time.Unix(claimedAt.Int64, 0).UTC()
+		item.ClaimedAt = &value
+	}
 	item.Complete = complete == 1
 	if err := json.Unmarshal([]byte(cryptoJSON), &item.Crypto); err != nil {
 		return item, err
@@ -597,4 +668,29 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func ensureColumn(db *sql.DB, table, column, definition string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, dataType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
+	return err
 }

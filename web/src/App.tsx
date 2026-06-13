@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  claimTransfer,
   completeTransfer,
+  consumeTransfer,
   createTransfer,
   getChunk,
   getManifest,
@@ -278,10 +280,12 @@ function DownloadView({ id }: { id: string }) {
       const key = await resolveFileKey(manifest.crypto, secret);
       setStage("Расшифровываем имя и тип файла");
       const metadata = await decryptMetadata(manifest.crypto, key);
+      setStage("Резервируем единственное получение файла");
+      const downloadToken = await claimTransfer(id);
       const parts: BlobPart[] = [];
       for (let index = 0; index < manifest.chunkCount; index += 1) {
         setStage(`Скачиваем и расшифровываем блок ${index + 1} из ${manifest.chunkCount}`);
-        const encrypted = await getChunk(id, index);
+        const encrypted = await getChunk(id, downloadToken, index);
         const plain = await decryptChunk(
           encrypted,
           key,
@@ -293,6 +297,8 @@ function DownloadView({ id }: { id: string }) {
         setProgress(Math.round(((index + 1) / manifest.chunkCount) * 100));
       }
       const url = URL.createObjectURL(new Blob(parts, { type: metadata.type }));
+      setStage("Удаляем зашифрованную копию с сервера");
+      await consumeTransfer(id, downloadToken);
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = metadata.name;
@@ -346,7 +352,7 @@ function DownloadView({ id }: { id: string }) {
             {busy ? "Расшифровываем…" : "Скачать и расшифровать"}
           </button>
           <p className="notice">
-            Расшифровка происходит только на этом устройстве.
+            Файл можно получить один раз. После расшифровки сервер удаляет его зашифрованную копию.
           </p>
         </>
       )}

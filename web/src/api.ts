@@ -61,9 +61,32 @@ export async function getManifest(id: string): Promise<TransferManifest> {
   return response.json() as Promise<TransferManifest>;
 }
 
-export async function getChunk(id: string, index: number): Promise<ArrayBuffer> {
+export async function claimTransfer(id: string): Promise<string> {
   const response = await checked(
-    await fetch(`/api/transfers/${id}/chunks/${index}`),
+    await fetch(`/api/transfers/${id}/claim`, { method: "POST" }),
+  );
+  const result = await response.json() as { downloadToken: string };
+  return result.downloadToken;
+}
+
+export async function getChunk(
+  id: string,
+  token: string,
+  index: number,
+): Promise<ArrayBuffer> {
+  const response = await checked(
+    await fetch(`/api/transfers/${id}/chunks/${index}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
   );
   return response.arrayBuffer();
+}
+
+export async function consumeTransfer(id: string, token: string): Promise<void> {
+  await checked(
+    await fetch(`/api/transfers/${id}/consume`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  );
 }

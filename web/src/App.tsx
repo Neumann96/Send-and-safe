@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import LiquidGlass from "liquid-glass-react";
 import {
   ApiError,
@@ -38,36 +38,12 @@ function GlassCard({
   className?: string;
   children: ReactNode;
 }) {
-  function moveGlass(event: MouseEvent<HTMLDivElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - bounds.left;
-    const y = event.clientY - bounds.top;
-    const shiftX = ((x / bounds.width) - 0.5) * 2;
-    const shiftY = ((y / bounds.height) - 0.5) * 2;
-
-    event.currentTarget.style.setProperty("--glass-x", `${x}px`);
-    event.currentTarget.style.setProperty("--glass-y", `${y}px`);
-    event.currentTarget.style.setProperty("--glass-shift-x", `${shiftX}px`);
-    event.currentTarget.style.setProperty("--glass-shift-y", `${shiftY}px`);
-  }
-
-  function settleGlass(event: MouseEvent<HTMLDivElement>) {
-    event.currentTarget.style.setProperty("--glass-x", "50%");
-    event.currentTarget.style.setProperty("--glass-y", "50%");
-    event.currentTarget.style.setProperty("--glass-shift-x", "0px");
-    event.currentTarget.style.setProperty("--glass-shift-y", "0px");
-  }
-
   return (
-    <div
-      className="card-glass-wrap"
-      onMouseMove={moveGlass}
-      onMouseLeave={settleGlass}
-    >
+    <div className="card-glass-wrap">
       <LiquidGlass
         className="card-glass-effect"
         displacementScale={76}
-        blurAmount={0.12}
+        blurAmount={0.04}
         saturation={150}
         aberrationIntensity={2.4}
         elasticity={0}

@@ -23,13 +23,14 @@ body {
 body::before {
   position: fixed;
   z-index: 0;
-  inset: 0;
+  inset: -18vh -18vw;
   background-image: url("/chat-pattern.svg");
-  background-position: center top;
+  background-position: center;
   background-size: 260px 260px;
   content: "";
   opacity: 0.28;
   pointer-events: none;
+  transform: rotate(-12deg);
 }
 
 .shell {
@@ -182,31 +183,9 @@ button:disabled {
 }
 
 .card-glass-wrap {
-  --glass-x: 50%;
-  --glass-y: 50%;
-  --glass-shift-x: 0px;
-  --glass-shift-y: 0px;
   position: relative;
   isolation: isolate;
   width: 100%;
-}
-
-.card-glass-wrap::before {
-  position: absolute;
-  z-index: -1;
-  inset: -54px;
-  border-radius: 70px;
-  background: radial-gradient(
-    circle 190px at calc(var(--glass-x) + 54px) calc(var(--glass-y) + 54px),
-    rgba(96, 120, 250, 0.28),
-    rgba(70, 94, 225, 0.1) 38%,
-    transparent 72%
-  );
-  content: "";
-  filter: blur(18px);
-  opacity: 0.9;
-  pointer-events: none;
-  transition: opacity 220ms ease;
 }
 
 .card-glass-effect {
@@ -214,8 +193,7 @@ button:disabled {
   top: auto !important;
   left: auto !important;
   width: 100%;
-  transform: translate(var(--glass-shift-x), var(--glass-shift-y)) !important;
-  transition: transform 160ms ease-out !important;
+  transform: none !important;
 }
 
 .card-glass-wrap > :not(.card-glass-effect) {
@@ -240,7 +218,7 @@ button:disabled {
   padding: 26px;
   border: 1px solid rgba(205, 216, 255, 0.25);
   border-radius: 25px;
-  background: rgba(14, 19, 31, 0.56);
+  background: rgba(14, 19, 31, 0.36);
   box-shadow:
     0 30px 80px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.15),

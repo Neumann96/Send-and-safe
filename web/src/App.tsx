@@ -46,7 +46,7 @@ function GlassCard({
         blurAmount={0.12}
         saturation={150}
         aberrationIntensity={2.4}
-        elasticity={0.12}
+        elasticity={0.01}
         cornerRadius={25}
         padding="0"
         mode="prominent"

@@ -43,7 +43,7 @@ function GlassCard({
       <LiquidGlass
         className="card-glass-effect"
         displacementScale={76}
-        blurAmount={0.04}
+        blurAmount={0.01}
         saturation={150}
         aberrationIntensity={2.4}
         elasticity={0}

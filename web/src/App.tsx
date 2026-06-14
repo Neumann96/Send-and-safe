@@ -101,7 +101,6 @@ export default function App() {
       app.onEvent("fullscreenChanged", syncTelegramViewport);
       app.onEvent("contentSafeAreaChanged", syncTelegramViewport);
       syncTelegramViewport();
-      app.requestFullscreen();
     }
 
     return () => {

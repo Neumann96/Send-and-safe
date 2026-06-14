@@ -74,6 +74,20 @@ export default function App() {
     const app = window.Telegram?.WebApp;
     if (!app) return;
 
+    const root = document.documentElement;
+    const syncTelegramViewport = () => {
+      const inset = app.contentSafeAreaInset;
+      root.classList.toggle("telegram-fullscreen", app.isFullscreen);
+      root.classList.toggle(
+        "telegram-fullscreen-mobile",
+        app.isFullscreen && (app.platform === "ios" || app.platform === "android"),
+      );
+      root.style.setProperty("--app-content-safe-area-top", `${inset?.top ?? 0}px`);
+      root.style.setProperty("--app-content-safe-area-right", `${inset?.right ?? 0}px`);
+      root.style.setProperty("--app-content-safe-area-bottom", `${inset?.bottom ?? 0}px`);
+      root.style.setProperty("--app-content-safe-area-left", `${inset?.left ?? 0}px`);
+    };
+
     const backgroundColor = "#080b12";
     app.setHeaderColor(backgroundColor);
     app.setBackgroundColor(backgroundColor);
@@ -84,8 +98,23 @@ export default function App() {
     app.ready();
     app.expand();
     if (app.isVersionAtLeast("8.0")) {
+      app.onEvent("fullscreenChanged", syncTelegramViewport);
+      app.onEvent("contentSafeAreaChanged", syncTelegramViewport);
+      syncTelegramViewport();
       app.requestFullscreen();
     }
+
+    return () => {
+      if (app.isVersionAtLeast("8.0")) {
+        app.offEvent("fullscreenChanged", syncTelegramViewport);
+        app.offEvent("contentSafeAreaChanged", syncTelegramViewport);
+      }
+      root.classList.remove("telegram-fullscreen", "telegram-fullscreen-mobile");
+      root.style.removeProperty("--app-content-safe-area-top");
+      root.style.removeProperty("--app-content-safe-area-right");
+      root.style.removeProperty("--app-content-safe-area-bottom");
+      root.style.removeProperty("--app-content-safe-area-left");
+    };
   }, []);
 
   return (

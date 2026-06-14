@@ -164,8 +164,31 @@ button:disabled {
 }
 
 .card-glass-wrap {
+  --glass-x: 50%;
+  --glass-y: 50%;
+  --glass-shift-x: 0px;
+  --glass-shift-y: 0px;
   position: relative;
+  isolation: isolate;
   width: 100%;
+}
+
+.card-glass-wrap::before {
+  position: absolute;
+  z-index: -1;
+  inset: -54px;
+  border-radius: 70px;
+  background: radial-gradient(
+    circle 190px at calc(var(--glass-x) + 54px) calc(var(--glass-y) + 54px),
+    rgba(96, 120, 250, 0.28),
+    rgba(70, 94, 225, 0.1) 38%,
+    transparent 72%
+  );
+  content: "";
+  filter: blur(18px);
+  opacity: 0.9;
+  pointer-events: none;
+  transition: opacity 220ms ease;
 }
 
 .card-glass-effect {
@@ -173,16 +196,12 @@ button:disabled {
   top: auto !important;
   left: auto !important;
   width: 100%;
-  transform: none !important;
+  transform: translate(var(--glass-shift-x), var(--glass-shift-y)) !important;
+  transition: transform 160ms ease-out !important;
 }
 
 .card-glass-wrap > div:not(.card-glass-effect) {
-  position: absolute !important;
-  inset: 0 !important;
-  top: 0 !important;
-  left: 0 !important;
-  transform: none !important;
-  pointer-events: none;
+  display: none !important;
 }
 
 .card-glass-effect > .glass {

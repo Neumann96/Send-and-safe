@@ -587,6 +587,10 @@ footer {
 }
 
 .transparency summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px;
   color: #adb9d0;
   cursor: pointer;
@@ -601,10 +605,15 @@ footer {
 }
 
 .transparency summary::after {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
   content: "+";
-  float: right;
   color: #7889ea;
   font-size: 17px;
+  line-height: 1;
   transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -774,6 +783,7 @@ footer {
 
 .lost-copy h1 {
   font-size: clamp(30px, 7vw, 44px);
+  letter-spacing: 0.006em;
 }
 
 .lost-copy > p {
@@ -810,6 +820,7 @@ footer {
   justify-content: center;
   gap: 12px;
   margin: 23px auto 0;
+  letter-spacing: 0.024em;
 }
 
 .lost-action span {

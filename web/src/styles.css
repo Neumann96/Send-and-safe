@@ -28,7 +28,7 @@ body::before {
   background-position: center;
   background-size: 260px 260px;
   content: "";
-  opacity: 0.28;
+  opacity: 0.4;
   pointer-events: none;
   transform: rotate(-12deg);
 }

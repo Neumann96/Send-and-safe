@@ -201,9 +201,7 @@ function UploadView() {
         )}
         <div className="proof-card">
           <div className="proof-title">
-            <span className="proof-icon">
-              <img src="/resistance-dog.svg" alt="" />
-            </span>
+            <span className="proof-icon">✓</span>
             <div>
               <strong>Что произошло на этом устройстве</strong>
               <small>{result.chunkCount} зашифрованных блоков за {formatDuration(result.durationMs)}</small>

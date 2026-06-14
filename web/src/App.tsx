@@ -304,6 +304,7 @@ function DownloadView({ id }: { id: string }) {
   const [code, setCode] = useState("");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const [error, setError] = useState("");
   const [stage, setStage] = useState("Готово к скачиванию");
 
@@ -320,7 +321,7 @@ function DownloadView({ id }: { id: string }) {
   }, [id]);
 
   async function download() {
-    if (!manifest) return;
+    if (!manifest || busy || completed) return;
     const fragment = new URLSearchParams(window.location.hash.slice(1));
     const secret = manifest.crypto.accessMode === "link" ? fragment.get("key") ?? "" : code;
     if (!secret) {
@@ -359,6 +360,7 @@ function DownloadView({ id }: { id: string }) {
       anchor.download = metadata.name;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setCompleted(true);
       setStage("Файл расшифрован и передан браузеру");
       hapticSuccess();
     } catch (reason) {
@@ -397,6 +399,7 @@ function DownloadView({ id }: { id: string }) {
               <input
                 value={code}
                 onChange={(event) => setCode(event.target.value.toUpperCase())}
+                disabled={busy || completed}
                 placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
                 autoCapitalize="characters"
                 autoCorrect="off"
@@ -411,8 +414,16 @@ function DownloadView({ id }: { id: string }) {
               <small>{stage} · {progress}%</small>
             </div>
           )}
-          <button className="primary" disabled={busy} onClick={download}>
-            {busy ? "Расшифровываем…" : "Скачать и расшифровать"}
+          <button
+            className={completed ? "primary completed" : "primary"}
+            disabled={busy || completed}
+            onClick={download}
+          >
+            {completed
+              ? "Файл успешно расшифрован"
+              : busy
+                ? "Расшифровываем…"
+                : "Скачать и расшифровать"}
           </button>
           <p className="notice">
             Файл можно получить один раз. После расшифровки сервер удаляет его зашифрованную копию.

@@ -10,14 +10,28 @@
   box-sizing: border-box;
 }
 
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #080b12;
+  overscroll-behavior: none;
+}
+
 body {
   position: relative;
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 50% -10%, rgba(53, 102, 255, 0.22), transparent 37%),
     #080b12;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body::before {
@@ -66,8 +80,14 @@ button:disabled {
 
 .shell {
   width: min(100%, 660px);
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: max(18px, env(safe-area-inset-top)) 16px max(22px, env(safe-area-inset-bottom));
+  padding:
+    max(18px, env(safe-area-inset-top), var(--tg-content-safe-area-inset-top, 0px))
+    max(16px, env(safe-area-inset-right), var(--tg-content-safe-area-inset-right, 0px))
+    max(22px, env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left), var(--tg-content-safe-area-inset-left, 0px));
 }
 
 .brand {

@@ -72,8 +72,20 @@ export default function App() {
 
   useEffect(() => {
     const app = window.Telegram?.WebApp;
-    app?.ready();
-    app?.expand();
+    if (!app) return;
+
+    const backgroundColor = "#080b12";
+    app.setHeaderColor(backgroundColor);
+    app.setBackgroundColor(backgroundColor);
+    if (app.isVersionAtLeast("7.10")) {
+      app.setBottomBarColor(backgroundColor);
+    }
+
+    app.ready();
+    app.expand();
+    if (app.isVersionAtLeast("8.0")) {
+      app.requestFullscreen();
+    }
   }, []);
 
   return (

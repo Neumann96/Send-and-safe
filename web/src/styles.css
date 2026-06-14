@@ -378,9 +378,13 @@ h1 {
 }
 
 .privacy-row span::before {
-  content: "✓";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
   margin-right: 5px;
-  color: #6f85ff;
+  background: url("/resistance-dog.svg") center / contain no-repeat;
+  content: "";
+  vertical-align: -3px;
 }
 
 .progress-wrap {
@@ -556,8 +560,12 @@ footer {
   flex: 0 0 35px;
   place-items: center;
   border-radius: 50%;
-  color: #baf4d5;
-  background: rgba(38, 145, 95, 0.25);
+  background: rgba(87, 108, 232, 0.16);
+}
+
+.proof-icon img {
+  width: 29px;
+  height: 29px;
 }
 
 .proof-list {
@@ -569,9 +577,13 @@ footer {
 }
 
 .proof-list span::before {
-  content: "✓";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
   margin-right: 8px;
-  color: #8497ff;
+  background: url("/resistance-dog.svg") center / contain no-repeat;
+  content: "";
+  vertical-align: -3px;
 }
 
 .transparency {

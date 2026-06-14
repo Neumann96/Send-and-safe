@@ -42,8 +42,8 @@ function GlassCard({
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - bounds.left;
     const y = event.clientY - bounds.top;
-    const shiftX = ((x / bounds.width) - 0.5) * 4;
-    const shiftY = ((y / bounds.height) - 0.5) * 4;
+    const shiftX = ((x / bounds.width) - 0.5) * 2;
+    const shiftY = ((y / bounds.height) - 0.5) * 2;
 
     event.currentTarget.style.setProperty("--glass-x", `${x}px`);
     event.currentTarget.style.setProperty("--glass-y", `${y}px`);

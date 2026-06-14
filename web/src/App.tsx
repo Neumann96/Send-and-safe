@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import LiquidGlass from "liquid-glass-react";
 import {
   ApiError,
   claimTransfer,
@@ -27,6 +29,33 @@ interface ShareResult {
   expiresAt: string;
   chunkCount: number;
   durationMs: number;
+}
+
+function GlassCard({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="card-glass-wrap">
+      <LiquidGlass
+        className="card-glass-effect"
+        displacementScale={76}
+        blurAmount={0.12}
+        saturation={150}
+        aberrationIntensity={2.4}
+        elasticity={0.12}
+        cornerRadius={25}
+        padding="0"
+        mode="prominent"
+        style={{ width: "100%" }}
+      >
+        <section className={`card ${className}`.trim()}>{children}</section>
+      </LiquidGlass>
+    </div>
+  );
 }
 
 export default function App() {
@@ -157,7 +186,7 @@ function UploadView() {
 
   if (result) {
     return (
-      <section className="card result-card">
+      <GlassCard className="result-card">
         <div className="success">Готово</div>
         <h1>Файл зашифрован и загружен</h1>
         <p className="muted">Доступ автоматически закроется через 48 часов.</p>
@@ -193,12 +222,12 @@ function UploadView() {
         }}>
           Отправить другой файл
         </button>
-      </section>
+      </GlassCard>
     );
   }
 
   return (
-    <section className="card">
+    <GlassCard>
       <div className="eyebrow">END-TO-END ШИФРОВАНИЕ</div>
       <h1>Передайте файл без лишних следов</h1>
       <p className="lead">
@@ -265,7 +294,7 @@ function UploadView() {
         <span>Без передачи ключей серверу</span>
       </div>
       <TransparencyDetails mode={mode} compact />
-    </section>
+    </GlassCard>
   );
 }
 
@@ -349,7 +378,7 @@ function DownloadView({ id }: { id: string }) {
   }
 
   return (
-    <section className="card download-card">
+    <GlassCard className="download-card">
       <div className="eyebrow">ЗАЩИЩЁННЫЙ ФАЙЛ</div>
       <h1>Получить файл</h1>
       {!manifest && !error && <p className="muted">Проверяем ссылку…</p>}
@@ -391,7 +420,7 @@ function DownloadView({ id }: { id: string }) {
         </>
       )}
       {error && <p className="error">{error}</p>}
-    </section>
+    </GlassCard>
   );
 }
 
@@ -405,7 +434,7 @@ function NotFoundView() {
   }, []);
 
   return (
-    <section className="card lost-card">
+    <GlassCard className="lost-card">
       <div className="lost-scene" aria-hidden="true">
         <div className="lost-orbit lost-orbit-one" />
         <div className="lost-orbit lost-orbit-two" />
@@ -438,7 +467,7 @@ function NotFoundView() {
         </button>
         <small className="lost-footnote">И это, пожалуй, хорошая новость для приватности.</small>
       </div>
-    </section>
+    </GlassCard>
   );
 }
 

@@ -70,6 +70,89 @@ button:disabled {
   animation: brand-in 620ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
 }
 
+.brand-file {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  animation: brand-in 620ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.brand-file-sheet {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  width: 30px;
+  height: 36px;
+  padding: 17px 6px 0;
+  border: 1px solid rgba(157, 172, 255, 0.52);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(91, 112, 232, 0.3), rgba(34, 44, 75, 0.86));
+  box-shadow:
+    0 9px 24px rgba(52, 72, 187, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: rotate(-5deg);
+}
+
+.brand-file-sheet::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-bottom: 1px solid rgba(157, 172, 255, 0.48);
+  border-left: 1px solid rgba(157, 172, 255, 0.48);
+  border-radius: 0 9px 0 5px;
+  background: rgba(126, 147, 255, 0.18);
+  content: "";
+}
+
+.brand-file-sheet b {
+  display: block;
+  height: 2px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(188, 199, 255, 0.56);
+}
+
+.brand-file-sheet b:last-child {
+  width: 65%;
+}
+
+.brand-file-lock {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 18px;
+  height: 16px;
+  border-radius: 6px;
+  background: linear-gradient(145deg, #7b8cff, #4362f5);
+  box-shadow: 0 5px 13px rgba(67, 98, 245, 0.38);
+}
+
+.brand-file-lock::before {
+  position: absolute;
+  top: -6px;
+  left: 5px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #7185f8;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  content: "";
+}
+
+.brand-file-lock::after {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  width: 3px;
+  height: 5px;
+  border-radius: 3px;
+  background: white;
+  content: "";
+}
+
 .brand strong, .brand small {
   display: block;
 }

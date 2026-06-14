@@ -50,7 +50,13 @@ export default function App() {
   return (
     <main className="shell">
       <header className="brand">
-        <span className="brand-mark">S</span>
+        <span className="brand-file" aria-hidden="true">
+          <i className="brand-file-sheet">
+            <b />
+            <b />
+          </i>
+          <i className="brand-file-lock" />
+        </span>
         <div>
           <strong>Send and Safe</strong>
           <small>Приватная передача файлов</small>

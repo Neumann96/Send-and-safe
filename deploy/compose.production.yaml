@@ -1,0 +1,21 @@
+services:
+  app:
+    image: ${IMAGE}
+    user: "995:986"
+    restart: unless-stopped
+    environment:
+      ADDR: ":8080"
+      DATA_DIR: "/app/data"
+      WEB_DIR: "/app/web/dist"
+      MAX_FILE_BYTES: "536870912"
+      MAX_STORAGE_BYTES: "8589934592"
+    ports:
+      - "127.0.0.1:8790:8080"
+    volumes:
+      - /var/lib/send-and-safe:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s

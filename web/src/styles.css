@@ -216,13 +216,13 @@ button:disabled {
   width: 100%;
   overflow: hidden;
   padding: 26px;
-  border: 1px solid rgba(205, 216, 255, 0.25);
+  border: 1px solid rgba(205, 216, 255, 0.2);
   border-radius: 25px;
-  background: rgba(14, 19, 31, 0.36);
+  background: rgba(14, 19, 31, 0.18);
   box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -1px 0 rgba(111, 132, 218, 0.1);
+    0 30px 80px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(111, 132, 218, 0.06);
   animation: card-in 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 

@@ -648,8 +648,8 @@ footer {
   overflow: hidden;
   padding: 0;
   background:
-    radial-gradient(circle at 22% 27%, rgba(89, 111, 255, 0.17), transparent 32%),
-    linear-gradient(145deg, rgba(18, 24, 39, 0.97), rgba(10, 14, 23, 0.98));
+    radial-gradient(circle at 22% 27%, rgba(89, 111, 255, 0.1), transparent 32%),
+    rgba(14, 19, 31, 0.06);
 }
 
 .lost-card::before {

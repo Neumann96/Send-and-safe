@@ -21,7 +21,11 @@ import {
 } from "./crypto";
 import type { AccessMode, TransferManifest } from "./types";
 
-const MAX_FILE_BYTES = 512 * 1024 * 1024;
+const MAX_FILE_BYTES = 10 * 1024 * 1024 * 1024;
+const MEMORY_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+const saveFilePicker = (window as Window & {
+  showSaveFilePicker?: (options: { suggestedName: string }) => Promise<FileSystemFileHandle>;
+}).showSaveFilePicker;
 
 interface ShareResult {
   link: string;
@@ -153,7 +157,7 @@ function UploadView() {
   async function upload() {
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {
-      setError("Для MVP максимальный размер файла — 512 МБ");
+      setError("Максимальный размер файла — 10 ГиБ");
       return;
     }
     setBusy(true);
@@ -292,10 +296,14 @@ function UploadView() {
         ) : (
           <>
             <strong>Выберите файл</strong>
-            <small>До 512 МБ</small>
+            <small>До 10 ГиБ</small>
           </>
         )}
       </label>
+
+      {file && file.size > MEMORY_DOWNLOAD_BYTES && (
+        <p className="notice">Получателю понадобится Chrome или Edge на компьютере для сохранения большого файла.</p>
+      )}
 
       <div className="mode-label">Как предоставить доступ</div>
       <div className="mode-grid">
@@ -347,6 +355,11 @@ function DownloadView({ id }: { id: string }) {
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState("");
   const [stage, setStage] = useState("Готово к скачиванию");
+  const [preparedDownload, setPreparedDownload] = useState<{
+    key: CryptoKey;
+    metadata: { name: string; type: string };
+    secret: string;
+  } | null>(null);
 
   useEffect(() => {
     getManifest(id)
@@ -368,14 +381,32 @@ function DownloadView({ id }: { id: string }) {
       setError("Нужен ключ из полной ссылки или код доступа");
       return;
     }
+    const largeFile = manifest.plainSize > MEMORY_DOWNLOAD_BYTES;
+    if (largeFile && !saveFilePicker) {
+      setError("Для скачивания файлов больше 512 МиБ откройте полную ссылку в Chrome или Edge на компьютере.");
+      return;
+    }
     setBusy(true);
     setError("");
     setProgress(0);
+    let writable: FileSystemWritableFileStream | undefined;
     try {
+      const prepared = preparedDownload?.secret === secret ? preparedDownload : null;
+      // Pick the destination directly from the second click, before awaiting
+      // crypto or network work, so the browser retains user activation.
+      if (largeFile && prepared && saveFilePicker) {
+        const handle = await saveFilePicker.call(window, { suggestedName: prepared.metadata.name });
+        writable = await handle.createWritable();
+      }
       setStage("Восстанавливаем ключ только на этом устройстве");
-      const key = await resolveFileKey(manifest.crypto, secret);
+      const key = prepared?.key ?? await resolveFileKey(manifest.crypto, secret);
       setStage("Расшифровываем имя и тип файла");
-      const metadata = await decryptMetadata(manifest.crypto, key);
+      const metadata = prepared?.metadata ?? await decryptMetadata(manifest.crypto, key);
+      if (largeFile && !writable) {
+        setPreparedDownload({ key, metadata, secret });
+        setStage("Файл готов. Выберите место сохранения.");
+        return;
+      }
       setStage("Резервируем единственное получение файла");
       const downloadToken = await claimTransfer(id);
       const parts: BlobPart[] = [];
@@ -389,21 +420,31 @@ function DownloadView({ id }: { id: string }) {
           index,
           manifest.plainSize,
         );
-        parts.push(plain);
+        if (writable) {
+          await writable.write(plain);
+        } else {
+          parts.push(plain);
+        }
         setProgress(Math.round(((index + 1) / manifest.chunkCount) * 100));
       }
-      const url = URL.createObjectURL(new Blob(parts, { type: metadata.type }));
+      if (writable) {
+        await writable.close();
+        writable = undefined;
+      } else {
+        const url = URL.createObjectURL(new Blob(parts, { type: metadata.type }));
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = metadata.name;
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
       setStage("Удаляем зашифрованную копию с сервера");
       await consumeTransfer(id, downloadToken);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = metadata.name;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
       setCompleted(true);
       setStage("Файл расшифрован и передан браузеру");
       hapticSuccess();
     } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
       if (isUnavailable(reason)) {
         setUnavailable(true);
         return;
@@ -411,6 +452,7 @@ function DownloadView({ id }: { id: string }) {
       setError(messageOf(reason, "Не удалось расшифровать файл"));
       hapticError();
     } finally {
+      if (writable) await writable.abort().catch(() => {});
       setBusy(false);
     }
   }
@@ -438,7 +480,10 @@ function DownloadView({ id }: { id: string }) {
               <span>Код доступа</span>
               <input
                 value={code}
-                onChange={(event) => setCode(event.target.value.toUpperCase())}
+                onChange={(event) => {
+                  setCode(event.target.value.toUpperCase());
+                  setPreparedDownload(null);
+                }}
                 disabled={busy || completed}
                 placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
                 autoCapitalize="characters"
@@ -454,6 +499,9 @@ function DownloadView({ id }: { id: string }) {
               <small>{stage} · {progress}%</small>
             </div>
           )}
+          {preparedDownload && !busy && !completed && (
+            <p className="muted">{preparedDownload.metadata.name} · выберите место сохранения файла.</p>
+          )}
           <button
             className={completed ? "primary completed" : "primary"}
             disabled={busy || completed}
@@ -463,7 +511,7 @@ function DownloadView({ id }: { id: string }) {
               ? "Файл успешно расшифрован"
               : busy
                 ? "Расшифровываем…"
-                : "Скачать и расшифровать"}
+                : preparedDownload ? "Выбрать место и скачать" : "Скачать и расшифровать"}
           </button>
           <p className="notice">
             Файл можно получить один раз. После расшифровки сервер удаляет его зашифрованную копию.

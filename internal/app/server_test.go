@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -125,6 +126,125 @@ func TestRejectsTransferWhenStorageQuotaIsExhausted(t *testing.T) {
 	second := request(server, http.MethodPost, "/api/transfers", body, "")
 	if second.Code != http.StatusInsufficientStorage {
 		t.Fatalf("second status = %d, body = %s", second.Code, second.Body)
+	}
+}
+
+func TestTenGiBTransferBoundary(t *testing.T) {
+	const limit = int64(10 * 1024 * 1024 * 1024)
+	for _, size := range []int64{512*1024*1024 + 1, limit, limit + 1} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			server := newTestServer(t)
+			server.config.MaxFileBytes = limit
+			server.config.MaxStorageBytes = 11 * 1024 * 1024 * 1024
+			server.availableDiskBytes = func(string) (int64, error) { return 20 * limit, nil }
+			const chunkSize = int64(4 * 1024 * 1024)
+			body, _ := json.Marshal(createRequest{
+				PlainSize: size, ChunkSize: chunkSize,
+				ChunkCount: int((size + chunkSize - 1) / chunkSize), Crypto: validLinkCrypto(),
+			})
+			response := request(server, http.MethodPost, "/api/transfers", body, "")
+			want := http.StatusCreated
+			if size > limit {
+				want = http.StatusBadRequest
+			}
+			if response.Code != want {
+				t.Fatalf("status = %d, want %d; body = %s", response.Code, want, response.Body)
+			}
+		})
+	}
+}
+
+func TestDiskReservationsIncludeUnwrittenAndExpiredChunks(t *testing.T) {
+	server := newTestServer(t)
+	server.availableDiskBytes = func(string) (int64, error) { return diskReserve + 80, nil }
+	body, _ := json.Marshal(createRequest{
+		PlainSize: 30, ChunkSize: 30, ChunkCount: 1, Crypto: validLinkCrypto(),
+	})
+	first := request(server, http.MethodPost, "/api/transfers", body, "")
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first status = %d, body = %s", first.Code, first.Body)
+	}
+	if _, err := server.db.Exec(`UPDATE transfers SET expires_at = ?`, time.Now().Add(-time.Minute).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	second := request(server, http.MethodPost, "/api/transfers", body, "")
+	if second.Code != http.StatusInsufficientStorage {
+		t.Fatalf("second status = %d, body = %s", second.Code, second.Body)
+	}
+}
+
+func TestUploadedChunksAreNotReservedTwice(t *testing.T) {
+	server := newTestServer(t)
+	server.availableDiskBytes = func(string) (int64, error) { return diskReserve + 80, nil }
+	createCompleteTransfer(t, server) // 21 bytes are already on disk.
+	server.availableDiskBytes = func(string) (int64, error) { return diskReserve + 59, nil }
+	body, _ := json.Marshal(createRequest{
+		PlainSize: 30, ChunkSize: 30, ChunkCount: 1, Crypto: validLinkCrypto(),
+	})
+	response := request(server, http.MethodPost, "/api/transfers", body, "")
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
+	}
+	response = request(server, http.MethodPost, "/api/transfers", body, "")
+	if response.Code != http.StatusInsufficientStorage {
+		t.Fatalf("second status = %d, body = %s", response.Code, response.Body)
+	}
+}
+
+func TestTenGiBTransferRejectedOnSixGiBFreeDisk(t *testing.T) {
+	server := newTestServer(t)
+	server.config.MaxFileBytes = 10 * 1024 * 1024 * 1024
+	server.config.MaxStorageBytes = 11 * 1024 * 1024 * 1024
+	server.availableDiskBytes = func(string) (int64, error) { return 6 * 1024 * 1024 * 1024, nil }
+	body, _ := json.Marshal(createRequest{
+		PlainSize: server.config.MaxFileBytes, ChunkSize: 4 * 1024 * 1024,
+		ChunkCount: 2560, Crypto: validLinkCrypto(),
+	})
+	response := request(server, http.MethodPost, "/api/transfers", body, "")
+	if response.Code != http.StatusInsufficientStorage {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
+	}
+	var count int
+	if err := server.db.QueryRow(`SELECT COUNT(*) FROM transfers`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("rejected transfer reserved storage: count=%d, err=%v", count, err)
+	}
+}
+
+func TestChunkWritePreservesDiskReserve(t *testing.T) {
+	server := newTestServer(t)
+	created := createCompleteTransfer(t, server)
+	if _, err := server.db.Exec(`UPDATE transfers SET complete = 0 WHERE id = ?`, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	server.availableDiskBytes = func(string) (int64, error) { return diskReserve + 20, nil }
+	response := request(server, http.MethodPut, "/api/transfers/"+created.ID+"/chunks/0", make([]byte, 21), created.UploadToken)
+	if response.Code != http.StatusInsufficientStorage {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
+	}
+	if _, err := os.Stat(server.chunkPath(created.ID, 0) + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("chunk temporary file should not be created: %v", err)
+	}
+}
+
+func TestDiskQueryFailureRejectsReservation(t *testing.T) {
+	server := newTestServer(t)
+	server.availableDiskBytes = func(string) (int64, error) { return 0, errors.New("disk unavailable") }
+	body, _ := json.Marshal(createRequest{
+		PlainSize: 5, ChunkSize: 5, ChunkCount: 1, Crypto: validLinkCrypto(),
+	})
+	response := request(server, http.MethodPost, "/api/transfers", body, "")
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body)
+	}
+}
+
+func TestAvailableDiskBytes(t *testing.T) {
+	available, err := availableDiskBytes(t.TempDir())
+	if err != nil || available <= 0 {
+		t.Fatalf("available bytes = %d, err = %v", available, err)
+	}
+	if _, err := availableDiskBytes(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Fatal("expected error for a missing directory")
 	}
 }
 

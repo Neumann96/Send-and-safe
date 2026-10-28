@@ -25,7 +25,8 @@ import (
 
 const (
 	maxChunkBytes = int64(4*1024*1024 + 16)
-	maxChunks     = 128
+	maxChunks     = 2560
+	diskReserve   = int64(1024 * 1024 * 1024)
 	transferTTL   = 48 * time.Hour
 )
 
@@ -39,9 +40,10 @@ type Config struct {
 }
 
 type Server struct {
-	config Config
-	db     *sql.DB
-	http   *http.Server
+	config             Config
+	db                 *sql.DB
+	http               *http.Server
+	availableDiskBytes func(string) (int64, error)
 }
 
 type CryptoManifest struct {
@@ -131,7 +133,7 @@ func New(config Config) (*Server, error) {
 		return nil, fmt.Errorf("migrate sqlite claim_token_hash: %w", err)
 	}
 
-	server := &Server{config: config, db: db}
+	server := &Server{config: config, db: db, availableDiskBytes: availableDiskBytes}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/transfers", server.handleTransfers)
 	mux.HandleFunc("/api/transfers/", server.handleTransfer)
@@ -268,6 +270,15 @@ func (s *Server) putChunk(w http.ResponseWriter, r *http.Request, id, rawIndex s
 		return
 	}
 	path := s.chunkPath(id, index)
+	available, err := s.availableDiskBytes(s.config.DataDir)
+	if err != nil {
+		http.Error(w, "could not check disk capacity", http.StatusInternalServerError)
+		return
+	}
+	if available-diskReserve < expected {
+		http.Error(w, "not enough free disk space", http.StatusInsufficientStorage)
+		return
+	}
 	temp := path + ".tmp"
 	file, err := os.OpenFile(temp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -476,6 +487,9 @@ func (s *Server) reserveStorage(item transfer) error {
 	if reserved > s.config.MaxStorageBytes-required {
 		return errStorageFull
 	}
+	if err := s.checkDiskCapacity(tx, required); err != nil {
+		return err
+	}
 	if _, err = tx.Exec(`
 		INSERT INTO transfers
 			(id, token_hash, plain_size, chunk_size, chunk_count, created_at, expires_at, complete, crypto_json)
@@ -486,6 +500,49 @@ func (s *Server) reserveStorage(item transfer) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// Count unwritten chunks before reading free space. Uploaded chunks already
+// occupy disk space; expired reservations still need accounting until cleanup.
+// The transaction serializes reservations from concurrent upload requests.
+func (s *Server) checkDiskCapacity(tx *sql.Tx, required int64) error {
+	rows, err := tx.Query(`SELECT id, plain_size, chunk_size, chunk_count FROM transfers`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	pending := int64(0)
+	for rows.Next() {
+		var item transfer
+		if err := rows.Scan(&item.ID, &item.PlainSize, &item.ChunkSize, &item.ChunkCount); err != nil {
+			return err
+		}
+		for index := 0; index < item.ChunkCount; index++ {
+			expected := item.ChunkSize + 16
+			if index == item.ChunkCount-1 {
+				expected = item.PlainSize - int64(index)*item.ChunkSize + 16
+			}
+			info, err := os.Stat(s.chunkPath(item.ID, index))
+			if os.IsNotExist(err) {
+				pending += expected
+			} else if err != nil {
+				return err
+			} else if info.Size() < expected {
+				pending += expected - info.Size()
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	available, err := s.availableDiskBytes(s.config.DataDir)
+	if err != nil {
+		return err
+	}
+	if available-diskReserve-pending < required {
+		return errStorageFull
+	}
+	return nil
 }
 
 func (s *Server) loadTransfer(id string) (transfer, error) {

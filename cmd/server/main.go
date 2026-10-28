@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	maxFileBytes := int64(512 * 1024 * 1024)
+	maxFileBytes := int64(10 * 1024 * 1024 * 1024)
 	maxFileBytes = envPositiveInt64("MAX_FILE_BYTES", maxFileBytes)
-	maxStorageBytes := envPositiveInt64("MAX_STORAGE_BYTES", 8*1024*1024*1024)
+	maxStorageBytes := envPositiveInt64("MAX_STORAGE_BYTES", 11*1024*1024*1024)
 
 	server, err := app.New(app.Config{
 		Addr:            envOr("ADDR", ":8080"),

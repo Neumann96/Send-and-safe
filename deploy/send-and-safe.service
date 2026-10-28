@@ -12,8 +12,8 @@ ExecStart=/opt/send-and-safe/send-and-safe
 Environment=ADDR=127.0.0.1:8790
 Environment=DATA_DIR=/var/lib/send-and-safe
 Environment=WEB_DIR=/opt/send-and-safe/web
-Environment=MAX_FILE_BYTES=536870912
-Environment=MAX_STORAGE_BYTES=8589934592
+Environment=MAX_FILE_BYTES=10737418240
+Environment=MAX_STORAGE_BYTES=11811160064
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true

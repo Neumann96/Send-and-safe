@@ -26,6 +26,9 @@ export class ApiError extends Error {
 async function checked(response: Response): Promise<Response> {
   if (response.ok) return response;
   const message = (await response.text()).trim();
+  if (response.status === 507) {
+    throw new ApiError("На сервере недостаточно свободного места для этого файла. Попробуйте позже или выберите файл меньше.", response.status);
+  }
   throw new ApiError(message || `Ошибка сервера: ${response.status}`, response.status);
 }
 

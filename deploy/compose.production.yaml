@@ -7,8 +7,8 @@ services:
       ADDR: ":8080"
       DATA_DIR: "/app/data"
       WEB_DIR: "/app/web/dist"
-      MAX_FILE_BYTES: "536870912"
-      MAX_STORAGE_BYTES: "8589934592"
+      MAX_FILE_BYTES: "10737418240"
+      MAX_STORAGE_BYTES: "11811160064"
     ports:
       - "127.0.0.1:8790:8080"
     volumes:
